@@ -10,7 +10,8 @@ const int motorPin1 = 8;
 const int motorPin2 = 9;
 const int motorPin3 = 10;
 const int motorPin4 = 11;
-const int redLedPin = 12;
+const int greenLedPin = 12;
+const int redLedPin = 13;
 
 // decoded hex IR values
 const int leftArrow = 0xC8EE0693;
@@ -28,7 +29,6 @@ decode_results irSignal;
 auto timer = timer_create_default(); // create a timer with default settings
 
 int stepNo = 0;
-int receivedVal = 0;
 boolean spinCW = false;
 boolean spinCCW = false;
 boolean redLedOn = false;
@@ -62,7 +62,7 @@ void loop() {
 
 void IRSignalFun(){
   if (irrecv.decode(&irSignal)) {
-    receivedVal = irSignal.value;
+    int receivedVal = irSignal.value;
     switch(receivedVal){
       case leftArrow:   // turn clockwise
         spinCW = true; 
