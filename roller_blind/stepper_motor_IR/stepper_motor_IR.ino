@@ -2,8 +2,8 @@
 #include <IRremote.h>
 
 #define FOTORES_PIN A5
-#define FOTORES_THR_NIGHT 960
-#define FOTORES_THR_DAY 770
+#define FOTORES_THR_NIGHT 68
+#define FOTORES_THR_DAY 165
 
 // all digital PINS plugged in
 const int irPin = 2; 
@@ -235,15 +235,15 @@ void OneStepMotor(byte dir){
 void AutoWork() {
   int fotoResVal = analogRead(FOTORES_PIN);
 
-  if(fotoResVal > FOTORES_THR_NIGHT && isUp == true) {
+  if(fotoResVal < FOTORES_THR_NIGHT && isUp) {
     spinCW = true; 
     spinCCW = false;
   } 
-  if(fotoResVal < FOTORES_THR_DAY && isDown == true) {
+  if(fotoResVal > FOTORES_THR_DAY && isDown) {
     spinCW = false; 
     spinCCW = true; 
   }
-  if(isUp == true && stepNoTotal > stepsLimit) {
+  if(isUp && stepNoTotal > stepsLimit) {
     isUp = false;
     spinCW = false; 
     spinCCW = false;
@@ -251,7 +251,7 @@ void AutoWork() {
     delay(500);
     isDown = true;
   }
-  if(isDown == true && stepNoTotal > stepsLimit) {
+  if(isDown && stepNoTotal > stepsLimit) {
     isDown = false;
     spinCW = false; 
     spinCCW = false;
