@@ -1,5 +1,5 @@
-#include <IRremote.h>
-#include <MyStepper.h>
+#include <IRremote.h>   //official library
+#include <MyStepper.h>  //created my library
 #include "irPilotSignals.h"
 
 #define FOTORES_PIN A5
