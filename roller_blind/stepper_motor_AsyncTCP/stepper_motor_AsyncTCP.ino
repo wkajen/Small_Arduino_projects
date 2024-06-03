@@ -3,10 +3,8 @@
 #include <ESPAsyncWebServer.h>
 #include <AutoStepper.h>  //created my library
 
+//board pinout
 const int fotoResPin = 34;
-const int fotoResThrNight = 200;
-const int fotoResThrDay = 300;
-int fotoResVal = 0;
 const int redLedPin = 23;
 const int trigPin = 4;
 const int echoPin = 5; //15
@@ -15,9 +13,15 @@ int motorPin1 = 16;
 int motorPin2 = 17;
 int motorPin3 = 18;
 int motorPin4 = 19;
-int stepsLimit = 1500;
-AutoStepper stepper(motorPin1, motorPin2, motorPin3, motorPin4);
 
+AutoStepper stepper(motorPin1, motorPin2, motorPin3, motorPin4);
+//limit numbers values
+int stepsLimit = 25000;
+const int fotoResThrNight = 200;
+const int fotoResThrDay = 300;
+
+//global variables
+int fotoResVal = 0;
 int spinDir = 0;
 bool isAutoWork = false;
 bool isUp = true;
@@ -32,8 +36,8 @@ bool isPerson = false;
 unsigned long prevMillis = 0;
 
 // Replaced with my network credentials
-const char* ssid     = "NaszNet-2";
-const char* password = "KajetanWiktoria123";
+const char* ssid     = "HomeNetwork";
+const char* password = "123456789";
 
 // Set async web server port number to 80
 AsyncWebServer server(80);
@@ -42,8 +46,7 @@ AsyncWebServer server(80);
 const char* PARAM_INPUT_1 = "variable";
 const char* PARAM_INPUT_2 = "state";
 
-//meta http-equiv=\"refresh\" content=\"5\"
-// body -> p -> <sup class="units">&deg;C</sup>
+// website part
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
@@ -407,8 +410,5 @@ void autoBlind() {
     isUp = true;
     blindPos = "UP";
   }
-  // if(spinDir == 0){
-  //   getDistance();
-  // }
 }
 
