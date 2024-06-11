@@ -1,42 +1,59 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <Adafruit_AHTX0.h>
 #include <AutoStepper.h>  //created my library
 
-//board pinout
-const int fotoResPin = 34;
-const int redLedPin = 23;
-const int trigPin = 4;
-const int echoPin = 5; //15
+// all pin numbers
+#define SDA_PIN 21
+#define SCL_PIN 22
 const int relayPin = 2;
+const int trigPin = 4;
+const int echoPin = 15; 
 int motorPin1 = 16;
 int motorPin2 = 17;
 int motorPin3 = 18;
 int motorPin4 = 19;
+const int fotoResPin = 34;
 
+// class instances
 AutoStepper stepper(motorPin1, motorPin2, motorPin3, motorPin4);
-//limit numbers values
-int stepsLimit = 25000;
-const int fotoResThrNight = 200;
-const int fotoResThrDay = 300;
 
-//global variables
+Adafruit_AHTX0 aht;
+Adafruit_Sensor *aht_humidity, *aht_temp;
+sensors_event_t humidity;
+sensors_event_t temp;
+
+// definded threshlod values
+const int fotoResThrNight = 380;
+const int fotoResThrDay = 750;
+int stepsLimit = 51500; 
+
+// the rest of global variables
+bool isAHT  = false;
+bool isAutoWork = false;
+bool isLedAuto = false;
+bool ledStripOn = false;
+bool isPerson = false;
+bool isUp = false;
+bool isDown = false;
+bool relayNowOn = false;
 int fotoResVal = 0;
 int spinDir = 0;
-bool isAutoWork = false;
-bool isUp = true;
-bool isDown = false;
-String blindPos = "NA";
 int stepsNo = 0;
 int photoResVal = 0;
 int distance = 0;
-bool ledStripOn = false;
-bool isLedAuto = false;
-bool isPerson = false;
-unsigned long prevMillis = 0;
+unsigned long prevMillisEnd = 0;
+unsigned long prevMillisStart = 0;
+
+// additional sting variables for displaying values on local website
+String myTemp = "-";
+String myHum = "-";
+String blindPos = "NA";
+
 
 // Replaced with my network credentials
-const char* ssid     = "HomeNetwork";
+const char* ssid     = "MyHomeWiFi";
 const char* password = "123456789";
 
 // Set async web server port number to 80
@@ -46,7 +63,6 @@ AsyncWebServer server(80);
 const char* PARAM_INPUT_1 = "variable";
 const char* PARAM_INPUT_2 = "state";
 
-// website part
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
@@ -70,18 +86,39 @@ const char index_html[] PROGMEM = R"rawliteral(
     input:checked+.slider {background-color: #7FFF00}
     input:checked+.slider:before {-webkit-transform: translateX(40px); -ms-transform: translateX(40px); transform: translateX(40px)}
     .button {
-      padding: 10px 20px; font-size: 24px; text-align: center; outline: none; color: #fff; background-color: #ff0522; border: none; border-radius: 5px;
+      padding: 10px 20px; font-size: 22px; text-align: center; outline: #0D084F; color: #fff; background-color: #52CBF1; border: none; border-radius: 5px;
       cursor: pointer; -webkit-tap-highlight-color: rgba(0,0,0,0); 
     } 
-    .button:hover {background-color: #ff0522 }
+    .button:hover {background-color: #52CBF1 }
     .button:active {
+      background-color: #E26AF1; 
+      transform: translateY(2px);
+    }
+    .buttonRed {
+      padding: 10px 20px; font-size: 20px; text-align: center; outline: none; color: #fff; background-color: #E40F0F; border: none; border-radius: 5px;
+      cursor: pointer; -webkit-tap-highlight-color: rgba(0,0,0,0); 
+    } 
+    .buttonRed:hover {background-color: #E40F0F }
+    .buttonRed:active {
       background-color: #1fe036;
       transform: translateY(2px);
     }
   </style>
 </head>
 <body>
-  <h2>LED control</h2>
+  <p>
+  <button class="button" onmousedown="toggleButton('tempUpdate');" ontouchstart="toggleButton('tempUpdate');" onmouseup="toggleButton('OFF');" ontouchend="toggleButton('OFF');">UPDATE</button>
+  </p>
+  <p>
+    <span class="info-label">Temperature = </span> 
+    <span id="temp">%TEMP%</span>
+    <span class="info-label"> C</span> 
+  </p>   
+  <p>
+    <span class="info-label">Humidity = </span> 
+    <span id="humid">%HUM%</span>
+    <span class="info-label"> rH</span> 
+  </p> 
   <p>
     <span class="info-label">Person distance = </span> 
     <span id="dist">%DIS%</span>
@@ -90,7 +127,6 @@ const char index_html[] PROGMEM = R"rawliteral(
 
   <h2>blind control</h2>
   <p>
-    <i class="fa-regular fa-lightbulb"></i>
     <span class="info-label">Light sensor value = </span> 
     <span id="lighting">%LIGHT%</span>
   </p>
@@ -104,8 +140,33 @@ const char index_html[] PROGMEM = R"rawliteral(
   <button class="button" onmousedown="toggleButton('UP');" ontouchstart="toggleButton('UP');" onmouseup="toggleButton('OFF');" ontouchend="toggleButton('OFF');">is UP</button>
   <button class="button" onmousedown="toggleButton('DOWN');" ontouchstart="toggleButton('DOWN');" onmouseup="toggleButton('OFF');" ontouchend="toggleButton('OFF');">is DOWN</button>
   </p>
+  <p>
+  <buttonRed class="buttonRed" onmousedown="toggleButton('stop');" ontouchstart="toggleButton('stop');" onmouseup="toggleButton('OFF');" ontouchend="toggleButton('OFF');">STOP</button>
+  </p>
 
 <script>
+  setInterval(function ( ) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("temp").innerHTML = this.responseText;
+      }
+    };
+    xhttp.open("GET", "/temp", true);
+    xhttp.send();
+  }, 60000 ) ;
+
+  setInterval(function ( ) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("humid").innerHTML = this.responseText;
+      }
+    };
+    xhttp.open("GET", "/humid", true);
+    xhttp.send();
+  }, 60000 ) ;
+
   setInterval(function ( ) {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
@@ -126,7 +187,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     };
     xhttp.open("GET", "/blindPos", true);
     xhttp.send();
-  }, 2000 ) ;
+  }, 5000 ) ;
 
     setInterval(function ( ) {
     var xhttp = new XMLHttpRequest();
@@ -182,6 +243,12 @@ String processor(const String& var){
   if(var == "DIS"){
     return String(distance);
   }
+  if(var == "TEMP"){
+    return myTemp;
+  }
+  if(var == "HUM"){
+    return myHum;
+  }
 
   return String();
 }
@@ -216,13 +283,28 @@ void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
 
-  pinMode(redLedPin, OUTPUT);
-  digitalWrite(redLedPin, LOW);
   pinMode(trigPin, OUTPUT); //dist. sensor output pin
   pinMode(echoPin, INPUT);  //dist. sensor input pin
   pinMode(relayPin, OUTPUT);
-  digitalWrite(relayPin, LOW);
+  digitalWrite(relayPin, LOW); 
+  
+  // Initialize AHT sensor
+  if (!aht.begin()) {
+    Serial.println("Failed to find AHT10 chip");
+  }
+  else{
+    isAHT = true;
+    Serial.println("AHT10 Found!");
 
+    aht_temp = aht.getTemperatureSensor();
+    aht_humidity = aht.getHumiditySensor();
+    // uncomment below section to get info about sensor details
+    // aht_temp->printSensorDetails();
+    // aht_humidity->printSensorDetails();
+
+    delay(1000);
+  }
+  
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi..");
@@ -248,15 +330,32 @@ void setup(){
   server.on("/dist", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", String(distance).c_str());
   });
+  server.on("/temp", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", myTemp.c_str());
+  });
+  server.on("/humid", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", myHum.c_str());
+  });
   server.on("/UP", HTTP_GET, [] (AsyncWebServerRequest *request) {
     isUp = true;
     isDown = false;
+    blindPos = "UP";
     request->send(200, "text/plain", blindPos.c_str());
   });
   server.on("/DOWN", HTTP_GET, [] (AsyncWebServerRequest *request) {
     isDown = true;
     isUp = false;
+    blindPos = "DOWN";
     request->send(200, "text/plain", blindPos.c_str());
+  });
+  server.on("/stop", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    spinDir = 0;
+    blindPos = "NA";
+    request->send(200, "text/plain", blindPos.c_str());
+  });
+  server.on("/tempUpdate", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    getTempHum();
+    request->send(200, "text/plain", "OK");
   });
 
   // Send a GET request to <ESP_IP>/update?output=<inputMessage1>&state=<inputMessage2>
@@ -309,7 +408,7 @@ void loop() {
   photoResVal = analogRead(fotoResPin) / 4; 
 
   blindFun();
-  ledFun(25, 100, 5000);
+  ledFun(25, 100, 15000, 1000);
 }
 
 
@@ -319,7 +418,6 @@ void loop() {
 
 void getDistance() {
   long time; 
-  // int distance;
  
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
@@ -329,32 +427,40 @@ void getDistance() {
  
   time = pulseIn(echoPin, HIGH);
   distance = (int) (time / 58);  // operation needed to get a distance in cm 
-  // return distance;
 }
 
-bool ledFun(unsigned int a, unsigned int b, unsigned long offTime) {
+void ledFun(unsigned int a, unsigned int b, unsigned long offTime, unsigned long onTime) {
   // get distance only when there is dark and roller blind is not spinning
-  if(spinDir == 0){ // && photoResVal < (fotoResThrNight + 30) ){          <--------- uncomment after tests
+  if(spinDir == 0 && photoResVal < fotoResThrDay ){          //<------ comment this for tests
     getDistance();
   }
-  // else{
-  //   distance = 0;
-  // }
   if(isLedAuto){
     unsigned long currMillis = millis();
     if(distance > a && distance < b) {
-      digitalWrite(relayPin, HIGH);
-      isPerson = true;
+      if(!isPerson) {
+        prevMillisStart = currMillis;
+        isPerson = true;
+      } 
     } 
     else if (isPerson == true) {
-      prevMillis = currMillis;
+      prevMillisEnd = currMillis;
       isPerson = false;
     }
 
-    if(isPerson == false && (currMillis - prevMillis) >= offTime) {
+    bool relayPrev = relayNowOn;
+    if(isPerson == true && (currMillis - prevMillisStart) >= onTime) {
+      relayNowOn = true;
+    }
+    if(isPerson == false && (currMillis - prevMillisEnd) >= offTime) {
+      relayNowOn = false;
+    }
+    if(relayPrev == false && relayNowOn == true){
+      digitalWrite(relayPin, HIGH);
+    }
+    else if(relayPrev == true && relayNowOn == false){
       digitalWrite(relayPin, LOW);
     }
-    return isPerson;
+
   }
   else{
     if(ledStripOn){
@@ -364,7 +470,6 @@ bool ledFun(unsigned int a, unsigned int b, unsigned long offTime) {
       digitalWrite(relayPin, LOW);
     }
   }
-  return 0;
 }
 
 void blindFun(){
@@ -375,22 +480,19 @@ void blindFun(){
   else {
     if(spinDir == 1 || spinDir == -1){
       stepsNo = stepper.motorSpinning(spinDir, isAutoWork);
-      digitalWrite(redLedPin, HIGH);
     }
     else{
       stepsNo = stepper.motorSpinning(0, isAutoWork);
-      digitalWrite(redLedPin, LOW);
-      // getDistance();
     }
   }
 }
 
 void autoBlind() {
-  if(photoResVal < fotoResThrNight && isUp) {
+  if((photoResVal < fotoResThrNight) && isUp) {
     spinDir = -1;
     blindPos = "moving down";
   } 
-  if(photoResVal > fotoResThrDay && isDown) {
+  else if((photoResVal > fotoResThrDay) && isDown) {
     spinDir = 1;
     blindPos = "moving up";
   }
@@ -398,7 +500,7 @@ void autoBlind() {
     isUp = false;
     spinDir = 0;
     stepsNo = 0;
-    delay(500);
+    delay(1500);
     isDown = true;
     blindPos = "DOWN";
   }
@@ -406,9 +508,18 @@ void autoBlind() {
     isDown = false;
     spinDir = 0;
     stepsNo = 0;
-    delay(500);
+    delay(1500);
     isUp = true;
     blindPos = "UP";
   }
 }
 
+void getTempHum(){
+  if(isAHT && spinDir == 0){
+    aht_humidity->getEvent(&humidity);
+    aht_temp->getEvent(&temp);
+    myTemp = String(temp.temperature - 3);
+    myHum = String(humidity.relative_humidity);
+    delay(1000);
+  }
+}

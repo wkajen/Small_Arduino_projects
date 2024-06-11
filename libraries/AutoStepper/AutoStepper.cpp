@@ -6,7 +6,6 @@ AutoStepper::AutoStepper(int motorPin1, int motorPin2, int motorPin3, int motorP
   this->motorPin2 = motorPin2;
   this->motorPin3 = motorPin3;
   this->motorPin4 = motorPin4;
-  // this->stepsLimit = stepsLimit;
   this->stepNo = 0;
   this->stepNoTotal = 0;
 
@@ -23,9 +22,6 @@ AutoStepper::AutoStepper(int motorPin1, int motorPin2, int motorPin3, int motorP
 
 
 int AutoStepper::motorSpinning(int dir, bool autoWork) {
-  // if(this->stepNoTotal > this->stepsLimit) {
-  //   dir = 0;
-  // }
   if(dir == 1 || dir == -1) { 
     AutoStepper::oneStepMotor(dir);   //spin clockwise
     if(autoWork){
@@ -45,26 +41,27 @@ int AutoStepper::motorSpinning(int dir, bool autoWork) {
 void AutoStepper::oneStepMotor(int dir){
   if(dir == 1){
     switch(this->stepNo){
+      // added double HIGH states to increase motor torque power
       case 0:
-        digitalWrite(motorPin1, HIGH);
-        digitalWrite(motorPin2, LOW);
+        digitalWrite(motorPin1, HIGH);  
+        digitalWrite(motorPin2, HIGH);
         digitalWrite(motorPin3, LOW);
         digitalWrite(motorPin4, LOW);
         break;
       case 1:
         digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, HIGH);
-        digitalWrite(motorPin3, LOW);
+        digitalWrite(motorPin3, HIGH);
         digitalWrite(motorPin4, LOW);
         break;
       case 2:
         digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, LOW);
         digitalWrite(motorPin3, HIGH);
-        digitalWrite(motorPin4, LOW);
+        digitalWrite(motorPin4, HIGH);
         break;
       case 3:
-        digitalWrite(motorPin1, LOW);
+        digitalWrite(motorPin1, HIGH);
         digitalWrite(motorPin2, LOW);
         digitalWrite(motorPin3, LOW);
         digitalWrite(motorPin4, HIGH);
@@ -105,7 +102,6 @@ void AutoStepper::oneStepMotor(int dir){
   }
   
   if(dir == 1 || dir == -1){
-    this->stepNoTotal++;
     this->stepNo++;
     if(this->stepNo > 3){
       this->stepNo = 0;
