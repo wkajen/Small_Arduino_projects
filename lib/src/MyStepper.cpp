@@ -1,11 +1,12 @@
 #include "Arduino.h"
-#include "AutoStepper.h"
+#include "MyStepper.h"
 
-AutoStepper::AutoStepper(int motorPin1, int motorPin2, int motorPin3, int motorPin4) {
+MyStepper::MyStepper(int motorPin1, int motorPin2, int motorPin3, int motorPin4, int stepsLimit) {
   this->motorPin1 = motorPin1;
   this->motorPin2 = motorPin2;
   this->motorPin3 = motorPin3;
   this->motorPin4 = motorPin4;
+  this->stepsLimit = stepsLimit;
   this->stepNo = 0;
   this->stepNoTotal = 0;
 
@@ -21,47 +22,52 @@ AutoStepper::AutoStepper(int motorPin1, int motorPin2, int motorPin3, int motorP
 }
 
 
-int AutoStepper::motorSpinning(int dir, bool autoWork) {
-  if(dir == 1 || dir == -1) { 
-    AutoStepper::oneStepMotor(dir);   //spin clockwise
-    if(autoWork){
-      this->stepNoTotal++;
-    }
+int MyStepper::motorSpinning(int dir, bool autoWork){
+  if(autoWork == true && (this->stepNoTotal > this->stepsLimit)) {
+    dir = 0;
+  }
+  if(dir == 1) { 
+    MyStepper::oneStepMotor(1, autoWork);   //spin clockwise
+    delay(2);
+  }
+  else if(dir == -1) { 
+    MyStepper::oneStepMotor(-1, autoWork);   //spin counter clockwise
     delay(2);
   }
   else {
-    AutoStepper::oneStepMotor(0);  // stop spinning
-    delay(50);
+    MyStepper::oneStepMotor(0, false);  // stop spinning
     this->stepNoTotal = 0;
   }
-  return stepNoTotal;
+  return dir;
 }
 
 
-void AutoStepper::oneStepMotor(int dir){
+void MyStepper::oneStepMotor(int dir, bool autoWork){
+  if(autoWork){
+    this->stepNoTotal++;
+  }
   if(dir == 1){
     switch(this->stepNo){
-      // added double HIGH states to increase motor torque power
       case 0:
-        digitalWrite(motorPin1, HIGH);  
-        digitalWrite(motorPin2, HIGH);
+        digitalWrite(motorPin1, HIGH);
+        digitalWrite(motorPin2, LOW);
         digitalWrite(motorPin3, LOW);
         digitalWrite(motorPin4, LOW);
         break;
       case 1:
         digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, HIGH);
-        digitalWrite(motorPin3, HIGH);
+        digitalWrite(motorPin3, LOW);
         digitalWrite(motorPin4, LOW);
         break;
       case 2:
         digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, LOW);
         digitalWrite(motorPin3, HIGH);
-        digitalWrite(motorPin4, HIGH);
+        digitalWrite(motorPin4, LOW);
         break;
       case 3:
-        digitalWrite(motorPin1, HIGH);
+        digitalWrite(motorPin1, LOW);
         digitalWrite(motorPin2, LOW);
         digitalWrite(motorPin3, LOW);
         digitalWrite(motorPin4, HIGH);

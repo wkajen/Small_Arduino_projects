@@ -1,23 +1,24 @@
-#ifndef AutoStepper_h
-#define AutoStepper_h
+#ifndef MyStepper_h
+#define MyStepper_h
 
-class AutoStepper {
+class MyStepper {
   public:
     // constructor
-    AutoStepper(int motorPin1, int motorPin2, int motorPin3, int motorPin4);
+    MyStepper(int motorPin1, int motorPin2, int motorPin3, int motorPin4, int stepsLimit);
 
     int motorSpinning(int dir, bool autoWork);
 
     int stepNoTotal;
 
   private:
-    void oneStepMotor(int dir);
+    void oneStepMotor(int dir, bool autoWork);
 
     int motorPin1;
     int motorPin2;
     int motorPin3;
     int motorPin4;
 
+    int stepsLimit;
     int stepNo;
     
 };
